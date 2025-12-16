@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { Search, Filter, Calendar, DollarSign, Package, Eye, Loader2 } from 'lucide-react'
+import { Search, Filter, Calendar, DollarSign, Package, Eye, Loader2, User, Mail, Phone, MapPin, CreditCard } from 'lucide-react'
 import { ordersAPI } from '../services/api'
 import StateMessage from './StateMessage'
+import Modal from './Modal'
 
 const Orders = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -9,6 +10,9 @@ const Orders = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [orders, setOrders] = useState([])
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedOrder, setSelectedOrder] = useState(null)
+  const [loadingOrderDetails, setLoadingOrderDetails] = useState(false)
 
   useEffect(() => {
     fetchOrders()
@@ -68,6 +72,28 @@ const Orders = () => {
       default:
         return 'bg-gray-100 text-gray-800'
     }
+  }
+
+  const handleViewOrder = async (order) => {
+    try {
+      setLoadingOrderDetails(true)
+      setError(null)
+      const response = await ordersAPI.getById(order._id || order.id)
+      setSelectedOrder(response.data?.data || response.data || order)
+      setIsModalOpen(true)
+    } catch (err) {
+      setError(err.message || 'Failed to load order details')
+      // Still show modal with existing order data
+      setSelectedOrder(order)
+      setIsModalOpen(true)
+    } finally {
+      setLoadingOrderDetails(false)
+    }
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedOrder(null)
   }
 
   return (
@@ -235,7 +261,11 @@ const Orders = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-indigo-600 hover:text-indigo-900 p-1 rounded hover:bg-indigo-50">
+                    <button 
+                      onClick={() => handleViewOrder(order)}
+                      className="text-indigo-600 hover:text-indigo-900 p-1 rounded hover:bg-indigo-50 transition-colors"
+                      title="View Order Details"
+                    >
                       <Eye size={18} />
                     </button>
                   </td>
@@ -253,6 +283,151 @@ const Orders = () => {
           )}
         </>
       )}
+
+      {/* Order Details Modal */}
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} title="Order Details" size="lg">
+        {loadingOrderDetails ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="animate-spin text-indigo-600" size={32} />
+          </div>
+        ) : selectedOrder ? (
+          <div className="space-y-6">
+            {/* Order Information */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Information</h3>
+              <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Order Number:</span>
+                  <span className="text-sm font-medium text-gray-900">{selectedOrder.orderNumber || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Order Date:</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleString() : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Status:</span>
+                  <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(selectedOrder.status)}`}>
+                    {selectedOrder.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Information */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Customer Information</h3>
+              <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                <div className="flex items-center gap-2">
+                  <User size={16} className="text-gray-400" />
+                  <span className="text-sm text-gray-700">
+                    {selectedOrder.customerName || selectedOrder.user?.name || 'N/A'}
+                  </span>
+                </div>
+                {selectedOrder.user?.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail size={16} className="text-gray-400" />
+                    <span className="text-sm text-gray-700">{selectedOrder.user.email}</span>
+                  </div>
+                )}
+                {selectedOrder.user?.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone size={16} className="text-gray-400" />
+                    <span className="text-sm text-gray-700">{selectedOrder.user.phone}</span>
+                  </div>
+                )}
+                {selectedOrder.shippingAddress && (
+                  <div className="flex items-start gap-2">
+                    <MapPin size={16} className="text-gray-400 mt-1" />
+                    <div className="text-sm text-gray-700">
+                      {selectedOrder.shippingAddress.street && <div>{selectedOrder.shippingAddress.street}</div>}
+                      {selectedOrder.shippingAddress.city && selectedOrder.shippingAddress.state && (
+                        <div>{selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state}</div>
+                      )}
+                      {selectedOrder.shippingAddress.pincode && (
+                        <div>PIN: {selectedOrder.shippingAddress.pincode}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Order Items */}
+            {selectedOrder.items && selectedOrder.items.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Items</h3>
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Price</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {selectedOrder.items.map((item, index) => (
+                        <tr key={index}>
+                          <td className="px-4 py-3">
+                            <div className="text-sm font-medium text-gray-900">
+                              {item.name || item.productName || 'N/A'}
+                            </div>
+                            {item.description && (
+                              <div className="text-xs text-gray-500 mt-1">{item.description}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{item.quantity || 1}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                            ₹{(item.price || 0).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
+                            ₹{((item.price || 0) * (item.quantity || 1)).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Payment Information */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Payment Information</h3>
+              <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Payment Status:</span>
+                  <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(selectedOrder.paymentStatus)}`}>
+                    {selectedOrder.paymentStatus || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Payment Method:</span>
+                  <div className="flex items-center gap-2">
+                    <CreditCard size={14} className="text-gray-400" />
+                    <span className="text-sm font-medium text-gray-900">{selectedOrder.paymentMethod || 'N/A'}</span>
+                  </div>
+                </div>
+                {selectedOrder.paymentId && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Payment ID:</span>
+                    <span className="text-sm font-medium text-gray-900">{selectedOrder.paymentId}</span>
+                  </div>
+                )}
+                <div className="flex justify-between pt-2 border-t border-gray-200">
+                  <span className="text-base font-semibold text-gray-800">Total Amount:</span>
+                  <span className="text-base font-bold text-indigo-600">
+                    ₹{(selectedOrder.total || selectedOrder.totalAmount || 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   )
 }

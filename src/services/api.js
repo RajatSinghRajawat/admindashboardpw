@@ -756,3 +756,48 @@ export const bookdemoAPI = {
   },
 }
 
+// Get Started
+export const getStartedAPI = {
+  getAll: async (params = {}) => {
+    return apiRequest({
+      endpoint: '/get-started',
+      method: 'get',
+      params,
+      authType: 'admin',
+    })
+  },
+
+  getById: async (id) => {
+    return apiRequest({
+      endpoint: `/get-started/${id}`,
+      method: 'get',
+      authType: 'admin',
+    })
+  },
+
+  update: async (id, data) => {
+    return apiRequest({
+      endpoint: `/get-started/${id}`,
+      method: 'put',
+      data,
+      authType: 'admin',
+    })
+  },
+
+  delete: async (id) => {
+    return apiRequest({
+      endpoint: `/get-started/${id}`,
+      method: 'delete',
+      authType: 'admin',
+    })
+  },
+
+  getStats: async () => {
+    return apiRequest({
+      endpoint: '/get-started/stats/overview',
+      method: 'get',
+      authType: 'admin',
+    })
+  },
+}
+

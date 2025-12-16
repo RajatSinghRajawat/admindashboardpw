@@ -16,6 +16,7 @@ import Store from './components/Store'
 import Tests from './components/Tests'
 import Admins from './components/Admins'
 import BookDemo from './components/BookDemo'
+import GetStarted from './components/GetStarted'
 
 
 // Layout wrapper to conditionally show sidebar
@@ -62,6 +63,7 @@ const App = () => {
           <Route path="/tests" element={<Tests />} />
           <Route path="/admins" element={<Admins />} />
           <Route path="/bookdemo" element={<BookDemo />} />
+          <Route path="/get-started" element={<GetStarted />} />
         </Routes>
       </AppLayout>
     </BrowserRouter>

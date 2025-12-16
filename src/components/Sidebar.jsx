@@ -18,6 +18,7 @@ import {
   ClipboardList,
   User,
   Calendar,
+  Rocket,
 } from 'lucide-react'
 import { authAPI } from '../services/api'
 
@@ -104,6 +105,11 @@ const Sidebar = () => {
       name: 'Book Demo',
       path: '/bookdemo',
       icon: Calendar,
+    },
+    {
+      name: 'Get Started',
+      path: '/get-started',
+      icon: Rocket,
     },
   ]
 

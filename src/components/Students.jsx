@@ -8,6 +8,7 @@ import Modal from './Modal'
 
 const Students = () => {
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState('registered') // 'registered' or 'logins'
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -101,7 +102,35 @@ const Students = () => {
     }
   }
 
-  const filteredStudents = students.filter((student) => {
+  // Separate registered students and recent logins
+  const registeredStudents = students
+  const recentLogins = students
+    .filter(student => {
+      // Show students who have logged in recently (within last 30 days) or have updatedAt
+      if (student.updatedAt) {
+        const lastUpdate = new Date(student.updatedAt)
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+        return lastUpdate > thirtyDaysAgo
+      }
+      // If no updatedAt, show recently registered (within last 7 days)
+      if (student.joinedDate) {
+        const registeredDate = new Date(student.joinedDate)
+        const sevenDaysAgo = new Date()
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+        return registeredDate > sevenDaysAgo
+      }
+      return false
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.updatedAt || a.joinedDate)
+      const dateB = new Date(b.updatedAt || b.joinedDate)
+      return dateB - dateA
+    })
+
+  const currentStudentsList = activeTab === 'registered' ? registeredStudents : recentLogins
+
+  const filteredStudents = currentStudentsList.filter((student) => {
     const searchLower = searchTerm.toLowerCase()
     const matchesSearch =
       student.name?.toLowerCase().includes(searchLower) ||
@@ -184,7 +213,7 @@ const Students = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">Students</h1>
-          <p className="text-gray-600 mt-1">Manage all registered students</p>
+          <p className="text-gray-600 mt-1">Manage all registered students and track logins</p>
         </div>
         <button
           type="button"
@@ -193,6 +222,32 @@ const Students = () => {
         >
           Add Student
         </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-white rounded-xl shadow-md border border-gray-100 p-1">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveTab('registered')}
+            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
+              activeTab === 'registered'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            All Registered Students ({registeredStudents.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('logins')}
+            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
+              activeTab === 'logins'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            Recent Logins ({recentLogins.length})
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -213,27 +268,39 @@ const Students = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
-          <p className="text-sm text-gray-600 font-medium">Total Students</p>
-          <p className="text-3xl font-bold text-gray-800 mt-2">{students.length}</p>
+          <p className="text-sm text-gray-600 font-medium">
+            {activeTab === 'registered' ? 'Total Students' : 'Recent Logins'}
+          </p>
+          <p className="text-3xl font-bold text-gray-800 mt-2">
+            {activeTab === 'registered' ? registeredStudents.length : recentLogins.length}
+          </p>
         </div>
         <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
           <p className="text-sm text-gray-600 font-medium">Active Students</p>
           <p className="text-3xl font-bold text-green-600 mt-2">
-            {students.filter((s) => s.status === 'Active').length}
+            {currentStudentsList.filter((s) => s.status === 'Active').length}
           </p>
         </div>
         <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
           <p className="text-sm text-gray-600 font-medium">Total Enrollments</p>
           <p className="text-3xl font-bold text-indigo-600 mt-2">
-            {students.reduce((sum, s) => sum + s.enrollments, 0)}
+            {currentStudentsList.reduce((sum, s) => sum + s.enrollments, 0)}
           </p>
         </div>
         <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
-          <p className="text-sm text-gray-600 font-medium">Avg. Enrollments</p>
+          <p className="text-sm text-gray-600 font-medium">
+            {activeTab === 'registered' ? 'Avg. Enrollments' : 'Today Logins'}
+          </p>
           <p className="text-3xl font-bold text-purple-600 mt-2">
-            {students.length > 0 
-              ? (students.reduce((sum, s) => sum + s.enrollments, 0) / students.length).toFixed(1)
-              : '0.0'}
+            {activeTab === 'registered' 
+              ? (currentStudentsList.length > 0 
+                  ? (currentStudentsList.reduce((sum, s) => sum + s.enrollments, 0) / currentStudentsList.length).toFixed(1)
+                  : '0.0')
+              : recentLogins.filter(s => {
+                  const lastLogin = new Date(s.updatedAt || s.joinedDate)
+                  const today = new Date()
+                  return lastLogin.toDateString() === today.toDateString()
+                }).length}
           </p>
         </div>
       </div>
@@ -288,7 +355,7 @@ const Students = () => {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Joined
+                  {activeTab === 'registered' ? 'Joined' : 'Last Login'}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
