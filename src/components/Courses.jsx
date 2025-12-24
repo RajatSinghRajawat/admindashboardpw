@@ -604,8 +604,13 @@ const Courses = () => {
                   <img src={imagePreview} alt="Preview" className="w-full h-32 object-cover rounded-lg" />
                 </div>
               )}
-              {formData.image && !imagePreview && (
+              {formData.image && !imagePreview && typeof formData.image === 'string' && (
                 <div className="mt-2 text-sm text-gray-500">Image URL: {formData.image}</div>
+              )}
+              {formData.image && !imagePreview && typeof formData.image !== 'string' && (
+                <div className="mt-2 text-sm text-gray-500">
+                  Selected file: {formData.image.name || 'image file'}
+                </div>
               )}
             </div>
 
@@ -622,8 +627,13 @@ const Courses = () => {
                   <img src={thumbnailPreview} alt="Thumbnail Preview" className="w-full h-32 object-cover rounded-lg" />
                 </div>
               )}
-              {formData.thumbnail && !thumbnailPreview && (
+              {formData.thumbnail && !thumbnailPreview && typeof formData.thumbnail === 'string' && (
                 <div className="mt-2 text-sm text-gray-500">Thumbnail URL: {formData.thumbnail}</div>
+              )}
+              {formData.thumbnail && !thumbnailPreview && typeof formData.thumbnail !== 'string' && (
+                <div className="mt-2 text-sm text-gray-500">
+                  Selected file: {formData.thumbnail.name || 'thumbnail file'}
+                </div>
               )}
             </div>
           </div>
