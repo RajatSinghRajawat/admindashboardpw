@@ -20,7 +20,8 @@ const Enrollments = () => {
   const [formData, setFormData] = useState({
     status: '',
     paymentStatus: '',
-    progress: 0
+    progress: 0,
+    notes: ''
   })
 
   useEffect(() => {
@@ -42,15 +43,15 @@ const Enrollments = () => {
       const response = await enrollmentsAPI.getAll(params)
       
       if (response.success) {
-        const enrollmentsData = response.data?.data || response.data || []
+        const enrollmentsData = response.data || []
         setEnrollments(Array.isArray(enrollmentsData) ? enrollmentsData : [])
         
         // Update pagination if available
-        if (response.data?.pagination) {
+        if (response.pagination) {
           setPagination(prev => ({
             ...prev,
-            total: response.data.pagination.total || enrollmentsData.length,
-            pages: response.data.pagination.pages || 1
+            total: response.pagination.total || enrollmentsData.length,
+            pages: response.pagination.pages || 1
           }))
         }
       } else {
@@ -71,14 +72,16 @@ const Enrollments = () => {
       setFormData({
         status: enrollment.status || 'active',
         paymentStatus: enrollment.paymentStatus || 'pending',
-        progress: enrollment.progress || 0
+        progress: enrollment.progress || 0,
+        notes: enrollment.notes || ''
       })
     } else {
       setEditingEnrollment(null)
       setFormData({
         status: 'active',
         paymentStatus: 'pending',
-        progress: 0
+        progress: 0,
+        notes: ''
       })
     }
     setIsModalOpen(true)
@@ -90,7 +93,8 @@ const Enrollments = () => {
     setFormData({
       status: 'active',
       paymentStatus: 'pending',
-      progress: 0
+      progress: 0,
+      notes: ''
     })
   }
 
@@ -113,7 +117,8 @@ const Enrollments = () => {
 
       const updateData = {
         status: formData.status,
-        paymentStatus: formData.paymentStatus
+        paymentStatus: formData.paymentStatus,
+        notes: formData.notes
       }
 
       await enrollmentsAPI.update(editingEnrollment._id || editingEnrollment.id, updateData)
@@ -153,13 +158,16 @@ const Enrollments = () => {
   }
 
   const filteredEnrollments = enrollments.filter((enrollment) => {
+    const studentName = enrollment.userId?.name || enrollment.user?.name || ''
+    const studentEmail = enrollment.userId?.email || enrollment.user?.email || ''
+    const courseTitle = enrollment.courseId?.title || enrollment.course?.title || enrollment.courseName || ''
+    const batchTitle = enrollment.batchId?.title || enrollment.batch?.title || ''
+    
     const matchesSearch =
-      enrollment.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      enrollment.courseName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      enrollment.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      enrollment.user?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      enrollment.course?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      enrollment.batch?.title?.toLowerCase().includes(searchTerm.toLowerCase())
+      studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      studentEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      courseTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      batchTitle.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesSearch
   })
 
@@ -361,82 +369,94 @@ const Enrollments = () => {
                   </td>
                 </tr>
               ) : (
-                filteredEnrollments.map((enrollment) => (
-                <tr key={enrollment._id || enrollment.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{enrollment.studentName || enrollment.user?.name || 'N/A'}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">{enrollment.courseName || enrollment.course?.title || enrollment.batch?.title || 'N/A'}</div>
-                  </td>
+                filteredEnrollments.map((enrollment) => {
+                  const studentName = enrollment.userId?.name || enrollment.user?.name || 'N/A'
+                  const studentEmail = enrollment.userId?.email || enrollment.user?.email || ''
+                  const courseTitle = enrollment.courseId?.title || enrollment.course?.title || enrollment.courseName || ''
+                  const batchTitle = enrollment.batchId?.title || enrollment.batch?.title || ''
+                  const itemTitle = enrollment.enrollmentType === 'course' ? courseTitle : batchTitle
+                  
+                  return (
+                  <tr key={enrollment._id || enrollment.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{studentName}</div>
+                      {studentEmail && (
+                        <div className="text-xs text-gray-500">{studentEmail}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">{itemTitle || 'N/A'}</div>
+                    </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
                       {enrollment.enrollmentType || (enrollment.course ? 'course' : 'batch')}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
-                      <DollarSign size={14} />
-                      ₹{(enrollment.amount || enrollment.price || 0).toLocaleString()}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-indigo-600 h-2 rounded-full"
-                          style={{ width: `${enrollment.progress || 0}%` }}
-                        />
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
+                        <DollarSign size={14} />
+                        ₹{(enrollment.finalAmount || enrollment.amount || enrollment.price || 0).toLocaleString()}
                       </div>
-                      <span className="text-sm text-gray-600">{enrollment.progress || 0}%</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                        enrollment.status
-                      )}`}
-                    >
-                      {enrollment.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(
-                        enrollment.paymentStatus
-                      )}`}
-                    >
-                      {enrollment.paymentStatus}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Calendar size={14} className="text-gray-400" />
-                      {enrollment.enrolledAt || enrollment.createdAt 
-                        ? new Date(enrollment.enrolledAt || enrollment.createdAt).toLocaleDateString()
-                        : 'N/A'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleOpenModal(enrollment)}
-                        className="text-indigo-600 hover:text-indigo-900 transition-colors"
-                        title="Edit"
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-indigo-600 h-2 rounded-full"
+                            style={{ width: `${enrollment.progress || 0}%` }}
+                          />
+                        </div>
+                        <span className="text-sm text-gray-600">{enrollment.progress || 0}%</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
+                          enrollment.status
+                        )}`}
                       >
-                        <Edit size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(enrollment._id || enrollment.id)}
-                        className="text-red-600 hover:text-red-900 transition-colors"
-                        title="Delete"
+                        {enrollment.status || 'pending'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(
+                          enrollment.paymentStatus
+                        )}`}
                       >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )))}
+                        {enrollment.paymentStatus || 'pending'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Calendar size={14} className="text-gray-400" />
+                        {enrollment.enrolledAt || enrollment.createdAt 
+                          ? new Date(enrollment.enrolledAt || enrollment.createdAt).toLocaleDateString()
+                          : 'N/A'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleOpenModal(enrollment)}
+                          className="text-indigo-600 hover:text-indigo-900 transition-colors"
+                          title="Edit"
+                        >
+                          <Edit size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(enrollment._id || enrollment.id)}
+                          className="text-red-600 hover:text-red-900 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -477,10 +497,12 @@ const Enrollments = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">Student</label>
               <div className="bg-gray-50 p-3 rounded-lg">
                 <p className="text-sm text-gray-700">
-                  {editingEnrollment.studentName || editingEnrollment.user?.name || 'N/A'}
+                  {editingEnrollment.userId?.name || editingEnrollment.user?.name || editingEnrollment.studentName || 'N/A'}
                 </p>
-                {editingEnrollment.user?.email && (
-                  <p className="text-xs text-gray-500 mt-1">{editingEnrollment.user.email}</p>
+                {(editingEnrollment.userId?.email || editingEnrollment.user?.email) && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {editingEnrollment.userId?.email || editingEnrollment.user?.email}
+                  </p>
                 )}
               </div>
             </div>
@@ -489,7 +511,9 @@ const Enrollments = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">Course/Batch</label>
               <div className="bg-gray-50 p-3 rounded-lg">
                 <p className="text-sm text-gray-700">
-                  {editingEnrollment.courseName || editingEnrollment.course?.title || editingEnrollment.batch?.title || 'N/A'}
+                  {editingEnrollment.enrollmentType === 'course' 
+                    ? (editingEnrollment.courseId?.title || editingEnrollment.course?.title || editingEnrollment.courseName || 'N/A')
+                    : (editingEnrollment.batchId?.title || editingEnrollment.batch?.title || 'N/A')}
                 </p>
               </div>
             </div>
@@ -554,6 +578,24 @@ const Enrollments = () => {
                   />
                 </div>
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2">
+                Admin Message / Notes
+              </label>
+              <textarea
+                id="notes"
+                name="notes"
+                rows={4}
+                value={formData.notes}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                placeholder="Add a message for the student (e.g., 'Enrollment complete', 'Payment received', etc.)"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                This message will be visible to the student in their profile
+              </p>
             </div>
 
             <div className="flex justify-end gap-3 pt-4">

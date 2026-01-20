@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Search, Plus, Edit, Trash2, Clock, Users, CheckCircle, XCircle, Filter, Loader2 } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Clock, Users, CheckCircle, XCircle, Filter, Loader2, PlusCircle, MinusCircle } from 'lucide-react'
 import { testsAPI, coursesAPI, batchesAPI } from '../services/api'
 import StateMessage from './StateMessage'
 import Modal from './Modal'
@@ -31,6 +31,7 @@ const Tests = () => {
     instructions: '',
     isPublished: false,
     isActive: true,
+    questions: [],
   })
 
   useEffect(() => {
@@ -44,7 +45,7 @@ const Tests = () => {
       setLoading(true)
       setError(null)
       const response = await testsAPI.getAll()
-      const testsData = response.data?.data || response.data || []
+      const testsData = response.data || []
       setTests(Array.isArray(testsData) ? testsData : [])
     } catch (err) {
       setError(err.message || 'Failed to load tests')
@@ -125,6 +126,14 @@ const Tests = () => {
         instructions: test.instructions || '',
         isPublished: test.isPublished || false,
         isActive: test.isActive !== undefined ? test.isActive : true,
+        questions: test.questions && Array.isArray(test.questions) ? test.questions.map(q => ({
+          question: q.question || '',
+          options: q.options && Array.isArray(q.options) ? [...q.options] : ['', '', '', ''],
+          correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : 0,
+          marks: q.marks || 1,
+          negativeMarks: q.negativeMarks || 0,
+          explanation: q.explanation || ''
+        })) : [],
       })
     } else {
       setEditingTest(null)
@@ -144,6 +153,7 @@ const Tests = () => {
         instructions: '',
         isPublished: false,
         isActive: true,
+        questions: [],
       })
     }
     setError(null)
@@ -169,8 +179,55 @@ const Tests = () => {
       instructions: '',
       isPublished: false,
       isActive: true,
+      questions: [],
     })
     setError(null)
+  }
+
+  const addQuestion = () => {
+    setFormData({
+      ...formData,
+      questions: [
+        ...formData.questions,
+        {
+          question: '',
+          options: ['', '', '', ''],
+          correctAnswer: 0,
+          marks: 1,
+          negativeMarks: 0,
+          explanation: ''
+        }
+      ]
+    })
+  }
+
+  const removeQuestion = (index) => {
+    const newQuestions = formData.questions.filter((_, i) => i !== index)
+    setFormData({
+      ...formData,
+      questions: newQuestions
+    })
+  }
+
+  const updateQuestion = (index, field, value) => {
+    const newQuestions = [...formData.questions]
+    newQuestions[index] = {
+      ...newQuestions[index],
+      [field]: value
+    }
+    setFormData({
+      ...formData,
+      questions: newQuestions
+    })
+  }
+
+  const updateQuestionOption = (questionIndex, optionIndex, value) => {
+    const newQuestions = [...formData.questions]
+    newQuestions[questionIndex].options[optionIndex] = value
+    setFormData({
+      ...formData,
+      questions: newQuestions
+    })
   }
 
   const handleSubmit = async (e) => {
@@ -179,22 +236,58 @@ const Tests = () => {
       setSubmitting(true)
       setError(null)
 
+      // Validate questions
+      if (!formData.questions || formData.questions.length === 0) {
+        setError('Please add at least one question')
+        return
+      }
+
+      // Validate each question
+      for (let i = 0; i < formData.questions.length; i++) {
+        const q = formData.questions[i]
+        if (!q.question || q.question.trim() === '') {
+          setError(`Question ${i + 1}: Question text is required`)
+          return
+        }
+        if (!q.options || q.options.length < 2) {
+          setError(`Question ${i + 1}: At least 2 options are required`)
+          return
+        }
+        const validOptions = q.options.filter(opt => opt && opt.trim() !== '')
+        if (validOptions.length < 2) {
+          setError(`Question ${i + 1}: At least 2 valid options are required`)
+          return
+        }
+        if (q.correctAnswer < 0 || q.correctAnswer >= validOptions.length) {
+          setError(`Question ${i + 1}: Please select a valid correct answer`)
+          return
+        }
+      }
+
       // Prepare data for submission
       const submitData = {
         ...formData,
         duration: parseInt(formData.duration),
-        totalQuestions: parseInt(formData.totalQuestions),
-        totalMarks: parseInt(formData.totalMarks),
+        totalQuestions: parseInt(formData.totalQuestions) || formData.questions.length,
+        totalMarks: parseInt(formData.totalMarks) || formData.questions.reduce((sum, q) => sum + (parseInt(q.marks) || 1), 0),
         date: formData.date ? new Date(formData.date) : new Date(),
         startDate: formData.startDate ? new Date(formData.startDate) : undefined,
         endDate: formData.endDate ? new Date(formData.endDate) : undefined,
         courseId: formData.courseId || undefined,
         batchId: formData.batchId || undefined,
+        questions: formData.questions.map(q => ({
+          question: q.question.trim(),
+          options: q.options.filter(opt => opt && opt.trim() !== '').map(opt => opt.trim()),
+          correctAnswer: parseInt(q.correctAnswer),
+          marks: parseInt(q.marks) || 1,
+          negativeMarks: parseFloat(q.negativeMarks) || 0,
+          explanation: q.explanation ? q.explanation.trim() : undefined
+        }))
       }
 
       // Remove empty strings
       Object.keys(submitData).forEach(key => {
-        if (submitData[key] === '') {
+        if (submitData[key] === '' || (Array.isArray(submitData[key]) && submitData[key].length === 0)) {
           delete submitData[key]
         }
       })
@@ -350,7 +443,7 @@ const Tests = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {filteredTests.map((test) => (
           <div
-            key={test.id}
+            key={test._id || test.id}
             className="bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-lg transition-shadow"
           >
             <div className="flex items-start justify-between mb-4">
@@ -610,6 +703,185 @@ const Tests = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Enter test instructions for students..."
             />
+          </div>
+
+          {/* Questions Section */}
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex items-center justify-between mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Questions ({formData.questions.length})
+              </label>
+              <button
+                type="button"
+                onClick={addQuestion}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <PlusCircle size={16} />
+                Add Question
+              </button>
+            </div>
+
+            {formData.questions.length === 0 ? (
+              <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-gray-500">No questions added yet. Click "Add Question" to get started.</p>
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {formData.questions.map((question, qIndex) => (
+                  <div key={qIndex} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold text-gray-700">Question {qIndex + 1}</h4>
+                      <button
+                        type="button"
+                        onClick={() => removeQuestion(qIndex)}
+                        className="text-red-600 hover:text-red-800 transition-colors"
+                        title="Remove Question"
+                      >
+                        <MinusCircle size={18} />
+                      </button>
+                    </div>
+
+                    {/* Question Text */}
+                    <div className="mb-3">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Question Text *
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={question.question}
+                        onChange={(e) => updateQuestion(qIndex, 'question', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                        placeholder="Enter the question..."
+                        required
+                      />
+                    </div>
+
+                    {/* Options */}
+                    <div className="mb-3">
+                      <label className="block text-xs font-medium text-gray-700 mb-2">
+                        Options * (At least 2 required)
+                      </label>
+                      <div className="space-y-2">
+                        {question.options.map((option, optIndex) => (
+                          <div key={optIndex} className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-gray-600 w-6">
+                              {String.fromCharCode(65 + optIndex)}.
+                            </span>
+                            <input
+                              type="text"
+                              value={option}
+                              onChange={(e) => updateQuestionOption(qIndex, optIndex, e.target.value)}
+                              className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                              placeholder={`Option ${String.fromCharCode(65 + optIndex)}`}
+                            />
+                            {optIndex === question.options.length - 1 && question.options.length < 6 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newOptions = [...question.options, '']
+                                  updateQuestion(qIndex, 'options', newOptions)
+                                }}
+                                className="text-indigo-600 hover:text-indigo-800 transition-colors"
+                                title="Add Option"
+                              >
+                                <PlusCircle size={16} />
+                              </button>
+                            )}
+                            {question.options.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newOptions = question.options.filter((_, idx) => idx !== optIndex)
+                                  // Adjust correctAnswer if needed
+                                  let newCorrectAnswer = question.correctAnswer
+                                  if (optIndex === question.correctAnswer) {
+                                    newCorrectAnswer = 0
+                                  } else if (optIndex < question.correctAnswer) {
+                                    newCorrectAnswer = question.correctAnswer - 1
+                                  }
+                                  updateQuestion(qIndex, 'options', newOptions)
+                                  updateQuestion(qIndex, 'correctAnswer', newCorrectAnswer)
+                                }}
+                                className="text-red-600 hover:text-red-800 transition-colors ml-1"
+                                title="Remove Option"
+                              >
+                                <MinusCircle size={16} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Correct Answer */}
+                    <div className="mb-3">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Correct Answer *
+                      </label>
+                      <select
+                        value={question.correctAnswer}
+                        onChange={(e) => updateQuestion(qIndex, 'correctAnswer', parseInt(e.target.value))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                        required
+                      >
+                        {question.options.map((opt, optIndex) => (
+                          opt && opt.trim() !== '' && (
+                            <option key={optIndex} value={optIndex}>
+                              {String.fromCharCode(65 + optIndex)}. {opt}
+                            </option>
+                          )
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Marks and Negative Marks */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Marks *
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={question.marks}
+                          onChange={(e) => updateQuestion(qIndex, 'marks', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Negative Marks
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.25"
+                          value={question.negativeMarks}
+                          onChange={(e) => updateQuestion(qIndex, 'negativeMarks', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Explanation */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Explanation (Optional)
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={question.explanation}
+                        onChange={(e) => updateQuestion(qIndex, 'explanation', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                        placeholder="Explain why this is the correct answer..."
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
